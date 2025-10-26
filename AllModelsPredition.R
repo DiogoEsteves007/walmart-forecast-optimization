@@ -1,0 +1,875 @@
+####################################################################
+# Carregamento de librarias necessárias
+####################################################################
+
+library(forecast)
+library(tseries)
+library(plotly)
+library(ggplot2)
+library(caret)
+library(rminer)
+library(gridExtra)
+library(prophet)
+
+####################################################################
+# Funções
+####################################################################
+
+
+# Função para mostrar os valores target e forecasts
+reshow=function(label="",Y,Pred,metric="MAE",PLOT=TRUE)
+{ main=paste(label,metric,":",round(mmetric(Y,Pred,metric=metric),digits=1))
+LEG=c("target",paste(label,"pred."))
+if(PLOT)mgraph(Y,Pred,graph="REG",main=main,Grid=10,col=c("black","blue"),leg=list(pos="topleft",leg=LEG))
+else cat(main,"\n")
+}
+
+# Gráfico vendas em função das datas
+vendas_sem <- function(dataframe,flag){
+  if(flag==1){
+    ggplot(dataframe, aes(x = Date, y = Sales)) +
+      geom_line() +
+      labs(x = "Date", y = "Sales", title = "Vendas Semanais Dep1")
+  } else if(flag==2){
+    ggplot(dataframe, aes(x = Date, y = Sales)) +
+      geom_line() +
+      labs(x = "Date", y = "Sales", title = "Vendas Semanais Dep2")
+  } else if(flag==3){
+    ggplot(dataframe, aes(x = Date, y = Sales)) +
+      geom_line() +
+      labs(x = "Date", y = "Sales", title = "Vendas Semanais Dep3")
+  } else if(flag==4){
+    ggplot(dataframe, aes(x = Date, y = Sales)) +
+      geom_line() +
+      labs(x = "Date", y = "Sales", title = "Vendas Semanais Dep4")
+  }
+}
+
+# Função print time series com calendário
+print_vendas_calend <- function(dados){
+  print(dados, calendar=TRUE)
+}
+
+prev_final <- function(dados_prev){
+  AR <- auto.arima(dados_prev, seasonal = TRUE, stepwise = FALSE, approximation = FALSE)
+  Pred<-forecast(AR,h=4)
+  return(Pred$mean)
+}
+
+# Funções realizar previsão (train test split)
+previsao_ARIMA <- function(flag,ts_sales_dep,val_r, valores_reais, num_previsoes){
+  AR <- auto.arima(ts_sales_dep, seasonal = TRUE, stepwise = FALSE, approximation = FALSE)
+  print("===================== MODELO ===================")
+  print(AR)
+  Pred<-forecast(AR,h=num_previsoes)
+  print("=============== MODELO - PREVISÕES ==============")
+  print(Pred$mean)
+  print("=============== MODELO - REAIS ===================")
+  print(tail(val_r, n= 4))
+  print("=============== MODELO - ACCURACY ===================")
+  accuracy(AR)
+  Pred_ARIMA<-Pred$mean[1:num_previsoes]
+  # Seasonal Naive model
+  SN_model <- snaive(ts_sales_dep)
+  Pred_SN <- forecast(SN_model, h = num_previsoes)$mean
+  
+  # Calculate MAE and NMAE for ARIMA model
+  MAE_ARIMA <- mean(abs(Pred_ARIMA - valores_reais))
+  
+  NMAE_ARIMA <- MAE_ARIMA / mean(valores_reais)
+  
+  # Calculate MAE and NMAE for Seasonal Naive model
+  MAE_SN <- mean(abs(Pred_SN - valores_reais))
+  NMAE_SN <- MAE_SN / mean(valores_reais)
+  
+  #Calculate RMSE, R2 and RRSE for ARIMA model
+  RMSE_ARIMA <- sqrt(mean((Pred_ARIMA - valores_reais)^2))
+  RRSE_ARIMA <- sqrt(sum((Pred_ARIMA - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2))
+  R2_ARIMA <- 1 - sum((Pred_ARIMA - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2)
+  
+  # Print MAE and NMAE for both models
+  cat("=============== ARIMA MODEL - MAE and NMAE ==============\n")
+  cat("MAE (ARIMA):", MAE_ARIMA, "\n")
+  cat("NMAE (ARIMA):", NMAE_ARIMA, "\n")
+  cat("RMSE (ARIMA):", RMSE_ARIMA, "\n")
+  cat("RRSE (ARIMA):", RRSE_ARIMA, "\n")
+  cat("R2 (ARIMA):", R2_ARIMA, "\n")
+  
+  cat("=============== SEASONAL NAIVE MODEL - MAE and NMAE ==============\n")
+  cat("MAE (Seasonal Naive):", MAE_SN, "\n")
+  cat("NMAE (Seasonal Naive):", NMAE_SN, "\n")
+  
+  
+  # Show results using reshow function
+  if(flag == 1) {
+    reshow("ARIMA - Dep1", valores_reais, Pred_ARIMA, "MAE")
+    # jpeg("Pred_Normal/ARIMA - Dep1.jpg", width = 427, height = 344)
+    # reshow("ARIMA - Dep1", valores_reais, Pred_ARIMA, "MAE")
+    # dev.off()
+    reshow("Seasonal Naive - Dep1", valores_reais, Pred_SN, "MAE")
+  } else if(flag == 2) {
+    reshow("ARIMA - Dep2", valores_reais, Pred_ARIMA, "MAE")
+    # jpeg("Pred_Normal/ARIMA - Dep2.jpg", width = 427, height = 344)
+    # reshow("ARIMA - Dep2", valores_reais, Pred_ARIMA, "MAE")
+    # dev.off()
+    reshow("Seasonal Naive - Dep2", valores_reais, Pred_SN, "MAE")
+  } else if(flag == 3) {
+    reshow("ARIMA - Dep3", valores_reais, Pred_ARIMA, "MAE")
+    # jpeg("Pred_Normal/ARIMA - Dep3.jpg", width = 427, height = 344)
+    # reshow("ARIMA - Dep3", valores_reais, Pred_ARIMA, "MAE")
+    # dev.off()
+    reshow("Seasonal Naive - Dep3", valores_reais, Pred_SN, "MAE")
+  } else if(flag == 4) {
+    reshow("ARIMA - Dep4", valores_reais, Pred_ARIMA, "MAE")
+    # jpeg("Pred_Normal/ARIMA - Dep4.jpg", width = 427, height = 344)
+    # reshow("ARIMA - Dep4", valores_reais, Pred_ARIMA, "MAE")
+    # dev.off()
+    reshow("Seasonal Naive - Dep4", valores_reais, Pred_SN, "MAE")
+  }
+  
+  return(Pred_ARIMA)
+}
+
+previsao_Holt <- function(flag,ts_sales_dep,val_r, valores_reais, num_previsoes){
+  HW=HoltWinters(ts_sales_dep)
+  F=forecast(HW,h=num_previsoes)
+  print("=============== MODELO - PREVISÕES ==============")
+  print(F$mean)
+  print("=============== MODELO - REAIS ===================")
+  print(tail(val_r, n= 4))
+  print("=============== MODELO - ACCURACY ===================")
+  accuracy(F)
+  Pred_HOLT<-F$mean[1:num_previsoes]
+  
+  # Calculate MAE and NMAE for ARIMA model
+  MAE_ARIMA <- mean(abs(Pred_HOLT - valores_reais))
+  NMAE_ARIMA <- MAE_ARIMA / mean(valores_reais)
+  
+  #Calculate RMSE, R2 and RRSE for ARIMA model
+  RMSE_HOLT <- sqrt(mean((Pred_HOLT - valores_reais)^2))
+  RRSE_HOLT <- sqrt(sum((Pred_HOLT - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2))
+  R2_HOLT <- 1 - sum((Pred_HOLT - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2)
+  
+  # Print MAE and NMAE for both models
+  cat("=============== ARIMA MODEL - MAE and NMAE ==============\n")
+  cat("MAE (HOLT-WINTERS):", MAE_ARIMA, "\n")
+  cat("NMAE (HOLT-WINTERS):", NMAE_ARIMA, "\n")
+  cat("RMSE (HOLT-WINTERS):", RMSE_HOLT, "\n")
+  cat("RRSE (HOLT-WINTERS):", RRSE_HOLT, "\n")
+  cat("R2 (HOLT-WINTERS):", R2_HOLT, "\n")
+  
+  # Show results using reshow function
+  if(flag == 1) {
+    reshow("HOLT-WINTERS - Dep1", valores_reais, Pred_HOLT, "MAE")
+  } else if(flag == 2) {
+    reshow("HOLT-WINTERS - Dep2", valores_reais, Pred_HOLT, "MAE")
+  } else if(flag == 3) {
+    reshow("HOLT-WINTERS - Dep3", valores_reais, Pred_HOLT, "MAE")
+  } else if(flag == 4) {
+    reshow("HOLT-WINTERS - Dep4", valores_reais, Pred_HOLT, "MAE")
+  }
+}
+
+#função mlp:
+forecast_department <- function(dep_sales, NPRED) {
+  srangeDep=diff(range(dep_sales))
+  D=CasesSeries(dep_sales,c(1:4))
+  print(summary(D))
+  N=nrow(D)
+  NTR=N-NPRED
+  TR=1:NTR
+  TS=(NTR+1):N
+  print("TR:")
+  print(TR)
+  
+  # fit a Neural Network (NN) - multilayer perceptron ensemble with training data: 
+  #mpause("fit a neural network (mlpe):")
+  
+  NN=fit(y~.,D[TR,],model="mlpe",search="heuristic")
+  LTS=length(TS) # length of the test set
+  cat("Predictions (from 1-ahead to ",LTS,"-ahead):\n",sep="")
+  START=nrow(D)-LTS+1 # START is the row from D of the first test example
+  PNN=lforecast(NN,D,start=START,horizon=LTS) # from 1 to TS-ahead predictions
+  Y<-D[TS,]$y
+  
+  
+  
+  MAE_ARIMA <- mean(abs(PNN - tail(dep_sales,4)))
+  NMAE_ARIMA <- MAE_ARIMA / mean(tail(dep_sales,4))
+  RMSE_MLPE <- sqrt(mean((PNN - tail(dep_sales, 4))^2))
+  RRSE_MLPE <- sqrt(sum((PNN - tail(dep_sales, 4))^2) / sum((tail(dep_sales, 4) - mean(tail(dep_sales, 4)))^2))
+  R2_MLPE <- 1 - sum((PNN - tail(dep_sales, 4))^2) / sum((tail(dep_sales, 4) - mean(tail(dep_sales, 4)))^2)
+  
+  # show forecasting measures and graph:
+  cat("NN (MLP) predictions:\n")
+  print(PNN)
+  cat("MAE:",MAE_ARIMA,"\n")
+  cat("NMAE:", NMAE_ARIMA,"\n")
+  cat("RMSE (MLPE):", RMSE_MLPE, "\n")
+  cat("RRSE (MLPE):", RRSE_MLPE, "\n")
+  cat("R2 (MLPE):", R2_MLPE, "\n")
+  
+  
+  # graph: REG - simple Regression Plot
+  mae=MAE_ARIMA
+  nmae=NMAE_ARIMA
+  r2=mmetric(Y,PNN,metric="R22")
+  print("Graph with NN predictions (1-ahead):")
+  main=paste("NN pred. (MAE=",round(mae,digits=1),", NMAE=",round(nmae,digits=0),sep="")
+  mgraph(Y,PNN,main=main,graph="REG",Grid=10,lty=1,col=c("black","blue"),leg=list(pos="topright",leg=c("target","predictions")))
+}
+
+# Função previsão PROPHET
+prever_ultimas_semanas <- function(data, departamento) {
+  
+  # Filtrar os dados por departamento e selecionar as últimas 139 semanas
+  data_dep <- data %>% select(Date, WSdep = paste0("WSdep", departamento)) %>% slice(1:139)
+  dados_reais <- data %>% select(WSdep = paste0("WSdep", departamento)) %>% slice(1:143)
+  
+  # Renomear as colunas conforme necessário para o prophet
+  colnames(data_dep) <- c("ds", "y")
+  
+  # Ajustar o modelo prophet com os dados anteriores
+  model <- prophet(data_dep)
+  
+  # Criar dataframe para previsão das últimas 4 semanas
+  future <- make_future_dataframe(model, periods = 4, freq = "week", include_history = FALSE)
+  
+  # Fazer a previsão apenas das últimas 4 semanas
+  forecast <- predict(model, future)
+  
+  # Calcular os valores reais das últimas 4 semanas
+  valores_reais <- unlist(tail(dados_reais, 4))
+
+  # Calcular o MAE e o NMAE
+  mae_media <- mean(abs(forecast$yhat - valores_reais))
+  nmae_media <- mae_media / mean(valores_reais)
+  
+  rmse <- sqrt(mean((forecast$yhat - valores_reais)^2))
+  rrse <- sqrt(sum((forecast$yhat - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2))
+  r2 <- 1 - sum((forecast$yhat - valores_reais)^2) / sum((valores_reais - mean(valores_reais))^2)
+  
+  # Imprimir a média do MAE e do NMAE
+  cat("MAE Médio:", mae_media, "\n")
+  cat("NMAE Médio:", nmae_media, "\n")
+  cat("RMSE:", rmse, "\n")
+  cat("RRSE:", rrse, "\n")
+  cat("R²:", r2, "\n")
+  
+  
+  # Retornar a previsão das últimas 4 semanas
+  return(forecast[c("ds", "yhat")])
+}
+
+# Função para plotar gráfico de previsão de vendas PROPHET
+plotar_previsao <- function(previsao, departamento,val_r) {
+  val_r$Date <- as.POSIXct(val_r$Date)
+  #previsao$ds <- as.POSIXct(previsao$ds)
+  
+  if(departamento == 1){
+    val_r2 <- names(val_r)[2] <- "WSdep1"
+  }else if(departamento ==2){
+    val_r2 <- names(val_r)[2] <- "WSdep2"
+  }else if(departamento == 3){
+    val_r2 <- names(val_r)[2] <- "WSdep3"
+  }else if(departamento == 4){
+    val_r2 <- names(val_r)[2] <- "WSdep4"
+  }
+  ggplot() +
+    geom_line(data = previsao, aes(x = ds, y = yhat, color = "Previsão")) +
+    geom_line(data = tail(val_r, 4), aes(x = Date, y = get(paste0("WSdep", departamento)), color = "Target")) +
+    labs(title = paste("Previsão vs. Target para o Departamento", departamento),
+         x = "Data",
+         y = "Vendas Semanais",
+         color = "Legenda") +
+    scale_color_manual(values = c("Previsão" = "blue", "Target" = "red")) +
+    theme_minimal()
+}
+
+
+# Funções growing window
+growing_window_ARIMA <- function(d1,k,Length_ts,dep){
+  
+  Test = k # H, the number of multi-ahead steps, adjust if needed
+  S = round(k/3) # step jump: set in this case to 4 months, a quarter
+  Runs =8 # number of growing window iterations, adjust if needed
+  
+  # forecast:
+  W = (Length_ts - Test) - (Runs - 1) * S # initial training window size for the ts space (forecast methods)
+  YR = diff(range(d1)) # global Y range, use the same range for the NMAE calculation in all iterations
+  ev_arima = vector(length = Runs)
+  ev_narima = vector(length = Runs)
+  ev_sn = vector(length = Runs)
+  
+  # Create ArimaGrowingPred folder if it doesn't exist
+  if (!file.exists("ArimaGrowingPred")) {
+    dir.create("ArimaGrowingPred")
+  }
+  
+  if (!file.exists("ArimaGrowingGraphs")) {
+    dir.create("ArimaGrowingGraphs")
+  }
+  
+  if (!file.exists("ComparacaoGrowing")) {
+    dir.create("ComparacaoGrowing")
+  }
+  
+  
+  for(b in 1:Runs)  # cycle of the incremental window training (growing window)
+  {
+    
+    H = holdout(d1, ratio = Test, mode = "incremental", iter = b, window = W, increment = S)   
+    trinit = H$tr[1]
+    # print(H)
+    # print(trinit)
+    dtr = ts(d1[H$tr], frequency = k) # create ts object, note that there is no start argument (for simplicity of the code)
+    AR_auto = auto.arima(dtr)
+    
+    Pred_arima = forecast(AR_auto, h = length(H$ts))$mean[1:Test] # multi-step ahead forecasts
+    
+    # Save predictions to CSV file in ArimaGrowingPred folder
+    csv_filename <- paste("ArimaGrowingPred/arima_iter", b, ".csv", sep = "")
+    write.table(Pred_arima, file = csv_filename, append = TRUE, sep = ",", col.names = FALSE, row.names = FALSE)
+    
+    csv_filename <- paste("ComparacaoGrowing/valores_reais_", b, ".csv", sep = "")
+    write.table(d1[H$ts][1:Test], file = csv_filename, append = TRUE, sep = ",", col.names = FALSE, row.names = FALSE)
+    
+    print("PREVISÕES")
+    print(Pred_arima[1:Test])
+    print("REAIS")
+    print(d1[H$ts][1:Test])
+    ev_arima[b] = mmetric(y = d1[H$ts], x = Pred_arima, metric = "MAE", val = YR)
+    ev_narima[b] = mmetric(y = d1[H$ts], x = Pred_arima, metric = "NMAE", val = YR)
+    
+    
+    MAE_ARIMA <- mean(abs(Pred_arima - d1[H$ts]))
+    NMAE_ARIMA <- MAE_ARIMA / mean(d1[H$ts])
+    RMSE_ARIMA <- sqrt(mean((Pred_arima - d1[H$ts])^2))
+    RRSE_ARIMA <- sqrt(sum((Pred_arima - d1[H$ts])^2) / sum((d1[H$ts] - mean(d1[H$ts]))^2))
+    R2_ARIMA <- 1 - sum((Pred_arima - d1[H$ts])^2) / sum((d1[H$ts] - mean(d1[H$ts]))^2)
+    dados_combinados <- cbind(MAE_ARIMA, NMAE_ARIMA)
+    csv_filename <- paste("metricas/metricas_", b, ".csv", sep = "")
+    write.table(dados_combinados, file = csv_filename, append = TRUE, sep = ",", col.names = FALSE, row.names = FALSE)
+    
+    
+    # Seasonal Naive model
+    SN_model = snaive(ts(d1[H$tr], frequency = k))
+    Pred_sn = forecast(SN_model, h = length(H$ts))$mean
+    
+    ev_sn[b] = mmetric(y = d1[H$ts], x = Pred_sn, metric = "MAE", val = YR)
+    
+    cat("iter:", b, "TR from:", trinit, "to:", (trinit + length(H$tr) - 1), "size:", length(H$tr),
+        "TS from:", H$ts[1], "to:", H$ts[length(H$ts)], "size:", length(H$ts),
+        "ARIMA MAE:", ev_arima[b], " RMSE:", RMSE_ARIMA, " RRSE:", RRSE_ARIMA, " R2:", R2_ARIMA,", Seasonal Naive MAE:", ev_sn[b], "\n")
+    
+    mgraph(d1[H$ts], Pred_arima, graph = "REG", Grid = 10, col = c("black", "blue"), leg = list(pos = "topleft", leg = c("target", "ARIMA pred.")))
+    lines(Pred_sn, col = "red")
+    #mpause() # wait for enter
+    
+    jpeg(paste0("ArimaGrowingGraphs/rplot_",dep,"_",b,".jpg"), width = 427, height = 344)
+    mgraph(d1[H$ts], Pred_arima, graph = "REG", Grid = 10, col = c("black", "blue"), leg = list(pos = "topleft", leg = c("target", "ARIMA pred.")))
+    lines(Pred_sn, col = "red")    
+    dev.off()
+    
+  } # end of cycle
+  
+  # show median of ev_arima and ev_sn
+  cat("median MAE:\n")
+  cat("ARIMA median MAE:", median(ev_arima), ", Seasonal Naive median MAE:", median(ev_sn), "\n")
+  #cat("ARIMA median MAE:", median(ev_arima), ", RMSE:", median(RMSE_ARIMA), ", RRSE:", median(RRSE_ARIMA), ", R2:", median(R2_ARIMA), ", Seasonal Naive median MAE:", median(ev_sn), "\n")
+}
+
+growing_window_HOLT <- function(d1,k,Length_ts){
+  
+  Test = k # H, the number of multi-ahead steps, adjust if needed
+  S = round(k/3) # step jump: set in this case to 4 months, a quarter
+  Runs =8 # number of growing window iterations, adjust if needed
+  
+  # forecast:
+  W = (Length_ts - Test) - (Runs - 1) * S # initial training window size for the ts space (forecast methods)
+  YR = diff(range(d1)) # global Y range, use the same range for the NMAE calculation in all iterations
+  ev_arima = vector(length = Runs)
+  ev_sn = vector(length = Runs)
+  
+  for(b in 1:Runs)  # cycle of the incremental window training (growing window)
+  {
+    
+    H = holdout(d1, ratio = Test, mode = "incremental", iter = b, window = W, increment = S)   
+    trinit = H$tr[1]
+    # print(H)
+    # print(trinit)
+    dtr = ts(d1[H$tr], frequency = k) # create ts object, note that there is no start argument (for simplicity of the code)
+    HW = HoltWinters(dtr)
+    
+    Pred_arima = forecast(HW, h = length(H$ts))$mean[1:Test] # multi-step ahead forecasts
+    print("PREVISÕES")
+    print(Pred_arima[1:Test])
+    print("REAIS")
+    print(d1[H$ts][1:Test])
+    ev_arima[b] = mmetric(y = d1[H$ts], x = Pred_arima, metric = "MAE", val = YR)
+    MAE_HOLT <- mean(abs(Pred_arima - d1[H$ts]))
+    NMAE_HOLT <- MAE_HOLT / mean(d1[H$ts])
+    RMSE_HOLT <- sqrt(mean((Pred_arima - d1[H$ts])^2))
+    RRSE_HOLT <- sqrt(sum((Pred_arima - d1[H$ts])^2) / sum((d1[H$ts] - mean(d1[H$ts]))^2))
+    R2_HOLT <- 1 - sum((Pred_arima - d1[H$ts])^2) / sum((d1[H$ts] - mean(d1[H$ts]))^2)
+    
+    # Seasonal Naive model
+    SN_model = snaive(ts(d1[H$tr], frequency = k))
+    Pred_sn = forecast(SN_model, h = length(H$ts))$mean
+    
+    ev_sn[b] = mmetric(y = d1[H$ts], x = Pred_sn, metric = "MAE", val = YR)
+    
+    cat("iter:", b, "TR from:", trinit, "to:", (trinit + length(H$tr) - 1), "size:", length(H$tr),
+        "TS from:", H$ts[1], "to:", H$ts[length(H$ts)], "size:", length(H$ts),
+        "HOLT MAE:", ev_arima[b], " RMSE:", RMSE_HOLT, " RRSE:", RRSE_HOLT, " R2:", R2_HOLT, ", Seasonal Naive MAE:", ev_sn[b], "\n")
+    
+    mgraph(d1[H$ts], Pred_arima, graph = "REG", Grid = 10, col = c("black", "blue"), leg = list(pos = "topleft", leg = c("target", "HOLT pred.")))
+    lines(Pred_sn, col = "red")
+    legend("topright", legend = c("Seasonal Naive pred."), col = "red", lty = 1, cex = 0.8)
+    #mpause() # wait for enter
+    
+  } # end of cycle
+  
+  # show median of ev_arima and ev_sn
+  cat("median MAE:\n")
+  cat("HOLT median MAE:", median(ev_arima), ", Seasonal Naive median MAE:", median(ev_sn), "\n")
+}
+
+#função mlpe:
+growing_window <- function(d1, k, Length_ts) {
+  print("incremental (growing) window training demonstration:")
+  Test <- k # H, the number of multi-ahead steps, adjust if needed
+  S <- round(k/3) # step jump: set in this case to 4 months, a quarter
+  Runs <- 12 # number of growing window iterations, adjust if needed
+  
+  # forecast:
+  W <- (Length_ts - Test) - (Runs - 1) * S # initial training window size for the ts space (forecast methods)
+  
+  # rminer:
+  timelags <- c(4, 12, 52) # 1 previous month, 12 and 13 previous year months, you can test other combinations, such as 1:13
+  D <- CasesSeries(d1, timelags) # note: nrow(D) is smaller by max timelags than length(d1)
+  W2 <- W - max(timelags) # initial training window size for the D space (CasesSeries, rminer methods)
+  
+  YR <- diff(range(d1)) # global Y range, use the same range for the NMAE calculation in all iterations
+  
+  ev <- vector(length = Runs) # error vector for "HoltWinters"
+  ev2 <- vector(length = Runs) # error vector for "mlpe"
+  
+  # growing window:
+  for(b in 1:Runs)  # cycle of the incremental window training (growing window)
+  {
+    # code for the forecast package methods, HoltWinters is just an example:
+    H <- holdout(d1, ratio = Test, mode = "incremental", iter = b, window = W, increment = S)   
+    trinit <- H$tr[1]
+    dtr <- ts(d1[H$tr], frequency = k) # create ts object, note that there is no start argument (for simplicity of the code)
+    M <- suppressWarnings(HoltWinters(dtr)) # create forecasting model, suppressWarnings removes warnings from HW method
+    Pred <- forecast(M, h = length(H$ts))$mean[1:Test] # multi-step ahead forecasts
+    ev[b] <- mmetric(y = d1[H$ts], x = Pred, metric = "NMAE", val = YR)
+    
+    # code for rminer package methods, "mlpe" is just an example:
+    H2 <- holdout(D$y, ratio = Test, mode = "incremental", iter = b, window = W2, increment = S)
+    MAE_MLPE <- mean(abs(Pred - d1[H2$ts]))
+    NMAE_MLPE <- MAE_MLPE / mean(d1[H2$ts])
+    RMSE_MLPE <- sqrt(mean((Pred - d1[H2$ts])^2))
+    RRSE_MLPE <- sqrt(sum((Pred - d1[H2$ts])^2) / sum((d1[H2$ts] - mean(d1[H2$ts]))^2))
+    R2_MLPE <- 1 - sum((Pred - d1[H2$ts])^2) / sum((d1[H2$ts] - mean(d1[H2$ts]))^2)
+    # note: the last training value is the same for dtr, namely:
+    # print(dtr[length(dtr)])  
+    # print(D[H2$tr[length(H2$tr)],]) # y is equal to previously shown value  
+    M2 <- fit(y ~ ., D[H2$tr,], model = "mlpe") # create forecasting model
+    Pred2 <- lforecast(M2, D, start = (length(H2$tr) + 1), Test) # multi-step ahead forecasts
+    ev2[b] <- mmetric(y = d1[H2$ts], x = Pred2, metric = "NMAE", val = YR)
+    
+    cat("iter:", b, "TR from:", trinit, "to:", (trinit + length(H$tr) - 1), "size:", length(H$tr),
+        "TS from:", H$ts[1], "to:", H$ts[length(H$ts)], "size:", length(H$ts),
+        "NMAE:", ev[b], " RMSE:", RMSE_MLPE, " RRSE:", RRSE_MLPE, " R2:", R2_MLPE, "\n")
+    
+    mgraph(d1[H$ts], Pred, graph = "REG", Grid = 10, col = c("black", "blue", "red"), leg = list(pos = "topleft", leg = c("target", "HW pred.", "mlpe")))
+    lines(Pred2, pch = 19, cex = 0.5, type = "b", col = "red")
+    #mpause() # wait for enter
+    
+  } # end of cycle
+  
+  cat("Mlpe median NMAE:", median(ev2), "\n")
+}
+
+
+#Função Growing window prophet:
+prever_ultimas_semanas_growing_window <- function(data, departamento, window_size) {
+  
+  # Filtrar os dados por departamento
+  data_dep <- data %>% select(Date, WSdep = paste0("WSdep", departamento))
+  
+  # Renomear as colunas conforme necessário para o prophet
+  colnames(data_dep) <- c("ds", "y")
+  
+  # Definir a janela de treinamento inicial
+  start_index <- 1
+  end_index <- start_index + window_size - 1
+  
+  # Converter os dados para um objeto data.frame
+  data_train <- as.data.frame(data_dep[start_index:end_index,])
+  
+  # Ajustar o modelo prophet com os dados da janela de treinamento inicial
+  model <- prophet(data_train)
+  
+  # Prever as próximas 4 semanas
+  future <- make_future_dataframe(model, periods = 4, freq = "week", include_history = TRUE)
+  forecast <- predict(model, future)
+  
+  # Retornar as previsões das últimas 4 semanas
+  return(forecast[nrow(data_train) + 1:nrow(forecast) - 4, c("ds", "yhat")])
+}
+
+
+growing_window_prophet <- function(data, departamento, num_iterations = 8, window_size = 110, step_size = 4) {
+  cat("Departamento:", departamento, "\n")  # Imprimir o número do departamento
+  
+  # Inicializar listas para armazenar as previsões
+  all_forecasts <- list()
+  
+  # Inicializar matrizes para armazenar os resultados de MAE e NMAE para cada semana de cada iteração
+  mae_resultados <- matrix(NA, nrow = num_iterations, ncol = 4)
+  nmae_resultados <- matrix(NA, nrow = num_iterations, ncol = 4)
+  rmse_resultados <- matrix(NA, nrow = num_iterations, ncol = 4)
+  rrse_resultados <- matrix(NA, nrow = num_iterations, ncol = 4)
+  r2_resultados <- matrix(NA, nrow = num_iterations, ncol = 4)
+  
+  # Loop para realizar as iterações
+  for (i in 1:num_iterations) {
+    cat("Iteração:", i, "| Janela de Treinamento:", window_size, "\n")
+    
+    # Previsão com growing window para o departamento atual e a janela de treinamento atual
+    previsao_growing_window <- prever_ultimas_semanas_growing_window(data = data, departamento = departamento, window_size = window_size)
+    
+    # Extrair valores previstos para as últimas 4 semanas
+    semanas <- as.Date(previsao_growing_window$ds)
+    valores_previstos <- previsao_growing_window$yhat
+    
+    # Armazenar as previsões
+    all_forecasts[[i]] <- valores_previstos
+    
+    # Calcular os valores reais para as últimas 4 semanas
+    start_real_index <- nrow(data) - window_size + 1
+    end_real_index <- start_real_index + 3
+    valores_reais <- data[start_real_index:end_real_index, paste0("WSdep", departamento)]
+    
+    # Ajustar os vetores para terem o mesmo comprimento
+    valores_reais <- head(valores_reais, length(valores_previstos))
+    
+    # Calcular o MAE e o NMAE para cada semana da iteração atual
+    for (j in 1:4) {
+      mae_resultados[i,j] <- abs(valores_reais[j] - valores_previstos[j])
+      nmae_resultados[i,j] <- calcular_nmae(valores_reais[j], valores_previstos[j])
+      rmse_resultados[i,j] <- sqrt(mean((valores_reais[j] - valores_previstos[j])^2))
+      rrse_resultados[i,j] <- sqrt(sum((valores_reais[j] - valores_previstos[j])^2) / sum((valores_reais[j] - mean(valores_reais[j]))^2))
+      r2_resultados[i,j] <- 1 - sum((valores_reais[j] - valores_previstos[j])^2) / sum((valores_reais[j] - mean(valores_reais[j]))^2)
+      #cat("RMSE:", rmse_resultados[i,j], "| RRSE:", rrse_resultados[i,j], "| R2:", r2_resultados[i,j], "\n")
+    }
+    
+    
+    # Plotar os valores previstos e reais para a última iteração
+    mgraph(valores_reais, valores_previstos, graph = "REG", Grid = 10, col = c("black", "blue"), leg = list(pos = "topleft", leg = c("target", "Prophet")),main = paste("Iteração", i))
+
+    # Imprimir valores previstos, reais e diferença na console para as últimas 4 semanas
+    for (j in 1:4) {
+      #cat("Valor Previsto:", valores_previstos[j], "| Valor Real:", valores_reais[j], "| MAE:", mae_resultados[i,j], "| NMAE:", nmae_resultados[i,j], "\n")
+      cat("Valor Previsto:", valores_previstos[j], "| Valor Real:", valores_reais[j], "| MAE:", mae_resultados[i,j], "| NMAE:", nmae_resultados[i,j], "| RMSE:", rmse_resultados[i,j], "| RRSE:", rrse_resultados[i,j], "| R2:", r2_resultados[i,j], "\n")
+      }
+    
+    
+    # Atualizar o tamanho da janela de treinamento para a próxima iteração
+    window_size <- window_size + step_size
+  }
+  
+  # Converter as previsões para um dataframe
+  combined_forecasts <- do.call(cbind, all_forecasts)
+  colnames(combined_forecasts) <- paste0("Iteração_", 1:num_iterations)
+  
+  # # Plotar as previsões para todas as iterações
+  # matplot(semanas, combined_forecasts, type = "l", xlab = "Data", ylab = "Vendas", main = paste("Previsão para Departamento", departamento), col = rainbow(num_iterations))
+  # 
+  # # Adicionar os valores reais ao gráfico com outra cor
+  # points(semanas, valores_reais, col = "black", pch = 19)
+  # 
+  # # Adicionar legenda
+  # legend("topright", legend = c("Previsto", "Real"), col = c(rainbow(num_iterations), "black"), pch = c(rep(1, num_iterations), 19))
+}
+
+# Função para calcular o MAE
+calcular_mae <- function(valores_reais, valores_previstos) {
+  mae <- mean(abs(valores_reais - valores_previstos), na.rm = TRUE)
+  return(mae)
+}
+
+# Função para calcular o NMAE corrigida
+calcular_nmae <- function(valores_reais, valores_previstos) {
+  nmae_semanal <- mean(abs(valores_reais - valores_previstos)) / mean(valores_reais)
+  return(nmae_semanal)
+}
+
+
+# Calcular mediana das iterações do growing window:
+mediana_arimaG <- function(flagModelo, flagIteracao){
+    valores_iteracao_teste <- read.csv(paste("ArimaGrowingPred/arima_iter", flagIteracao, ".csv", sep = ""), header = FALSE)$V1
+    
+    num_matrizes <- split(valores_iteracao_teste, rep(1:ceiling(length(valores_iteracao_teste)/16), each = 16, length.out = length(valores_iteracao_teste)))
+    
+    
+    # Inicializa uma lista para armazenar as matrizes
+    lista_matrizes <- list()
+    
+    # Itera sobre as matrizes e as armazena na lista
+    for(i in 1:length(num_matrizes)){
+      valores <- unlist(num_matrizes[i])
+      matriz <- t(matrix(valores, ncol = 4, byrow = TRUE))
+      lista_matrizes[[i]] <- matriz
+      #print(matriz)
+    }
+    
+    matriz_final <- apply(array(unlist(lista_matrizes), dim = c(4, 4, length(lista_matrizes))), c(1, 2), median)
+    #print(matriz_final)
+    
+    nome_arquivo <- paste("GrowingFinalArima/matriz_final_Arima_", flagIteracao, ".csv", sep = "")
+    write.csv(matriz, file = nome_arquivo, row.names = FALSE)
+    
+}
+
+mediana_arimaG_metricas <- function(flagIteracao){
+  valores_iteracao_teste <- read.csv(paste("metricas/metricas_", flagIteracao, ".csv", sep = ""), header = FALSE)
+  print(valores_iteracao_teste)
+  if (!is.data.frame(valores_iteracao_teste)) {
+    valores_iteracao_teste <- as.data.frame(valores_iteracao_teste)
+  }
+  print(valores_iteracao_teste)
+  num_matrizes <- split(valores_iteracao_teste, rep(1:(nrow(valores_iteracao_teste) %/% 4), each = 4))
+  mediana_por_linha <- t(sapply(1:4, function(i) {
+    mediana <- apply(do.call(rbind, lapply(num_matrizes, function(x) x[i, ])), 2, median)
+    }))
+
+  nome_arquivo <- paste("medianaMetricas/metricas_final_", flagIteracao, ".csv", sep = "")
+  write.csv(mediana_por_linha, file = nome_arquivo, row.names = FALSE)
+
+}
+
+iteracoes_g_arima <- function(){
+  for(i in 1:9){
+    cat("Iteração:", i, "\n")
+    # Departamento 1 
+    growing_window_ARIMA(dep1_sales,k,Length_ts,1)
+    # Departamento 2 
+    growing_window_ARIMA(dep2_sales,k,Length_ts,2)
+    # Departamento 3 
+    growing_window_ARIMA(dep3_sales,k,Length_ts,3)
+    # Departamento 4 
+    growing_window_ARIMA(dep4_sales,k,Length_ts,4)
+  }
+  mediana_arimaG("Arima",1)
+  mediana_arimaG("Arima",2)
+  mediana_arimaG("Arima",3)
+  mediana_arimaG("Arima",4)
+  mediana_arimaG("Arima",5)
+  mediana_arimaG("Arima",6)
+  mediana_arimaG("Arima",7)
+  mediana_arimaG("Arima",8)
+  
+  mediana_arimaG_metricas(1)
+  mediana_arimaG_metricas(2)
+  mediana_arimaG_metricas(3)
+  mediana_arimaG_metricas(4)
+  mediana_arimaG_metricas(5)
+  mediana_arimaG_metricas(6)
+  mediana_arimaG_metricas(7)
+  mediana_arimaG_metricas(8)
+}
+
+eliminar_ficheiros <- function(){
+  closeAllConnections()
+    # Limpa a pasta ArimaGrowingPred
+    files_to_delete <- list.files("ArimaGrowingPred", full.names = TRUE)
+    files_to_delete2 <- list.files("metricas", full.names = TRUE)
+    file.remove(files_to_delete)
+    file.remove(files_to_delete2)
+    
+}
+####################################################################
+# Variáveis
+####################################################################
+
+k <- 4 # Periodo TS
+Num_pred <- 4 # Numero de previsões
+
+####################################################################
+# Passo 1: Carregamento de dados
+####################################################################
+
+# Leitura do arquivo CSV
+dados <- read.csv("walmart.csv")
+summary(dados)
+dados$Date <- as.Date(dados$Date)
+class(dados$Date) # Verificar classe do atributo Date
+
+# Seleção de apenas as vendas para cada departamento
+dep1_sales <- dados$WSdep1 # Variavel vendas dep1
+dep2_sales <- dados$WSdep2 # Variavel vendas dep2
+dep3_sales <- dados$WSdep3 # Variavel vendas dep3
+dep4_sales <- dados$WSdep4 # Variavel vendas dep4
+
+# Criar um dataframe com as datas + vendas (APENAS PARA POSSIBILITAR VISUALIZAÇÃO SALES+VENDAS)
+df_1 <- data.frame(Date = dados$Date, Sales = dep1_sales)
+df_2 <- data.frame(Date = dados$Date, Sales = dep2_sales)
+df_3 <- data.frame(Date = dados$Date, Sales = dep3_sales)
+df_4 <- data.frame(Date = dados$Date, Sales = dep4_sales)
+
+# Plotar as vendas em função das datas
+vendas_sem(df_1,1)
+vendas_sem(df_2,2)
+vendas_sem(df_3,3)
+vendas_sem(df_4,4)
+
+####################################################################
+# Inicialização variaveis para test-train split
+####################################################################
+
+Length_ts= length(dep1_sales) # Tamanho observações (Igual para todos os departamentos)  || 143
+
+Obs_Rem <- Num_pred # Esta variável será utilizada para remover as 4 ultimas linhas de forma a depois testar se a previsão está correta  || 4
+Obs_Util <- Length_ts-Obs_Rem # Numero de linhas (observações) a utilizar para a previsão  || 139
+
+####################################################################
+# Passo 2: Criação objetos de serie temporal
+####################################################################
+
+# Criação dos objetos ts
+ts_data <- ts(dep1_sales[1:Obs_Util], frequency = k)
+ts_data_2 <- ts(dep2_sales[1:Obs_Util], frequency = k)
+ts_data_3 <- ts(dep3_sales[1:Obs_Util], frequency = k)
+ts_data_4 <- ts(dep4_sales[1:Obs_Util], frequency = k)
+
+# Verificação - Print vendas
+print_vendas_calend(ts_data)
+print_vendas_calend(ts_data_2)
+print_vendas_calend(ts_data_3)
+print_vendas_calend(ts_data_4)
+
+####################################################################
+# Passo 3: Modelo (train-test split)
+####################################################################
+
+# Valores reais das previsões a realizar (Para depois verificar)
+prev_corr <- dep1_sales[(Obs_Util+1):Length_ts] 
+prev_corr_2 <- dep2_sales[(Obs_Util+1):Length_ts] 
+prev_corr_3 <- dep3_sales[(Obs_Util+1):Length_ts]
+prev_corr_4 <- dep4_sales[(Obs_Util+1):Length_ts]
+
+# MODELO: ARIMA
+
+previsao_ARIMA(1,ts_data,dep1_sales,prev_corr,Num_pred) 
+previsao_ARIMA(2,ts_data_2,dep2_sales,prev_corr_2,Num_pred) 
+previsao_ARIMA(3,ts_data_3,dep3_sales,prev_corr_3,Num_pred) 
+previsao_ARIMA(4,ts_data_4,dep4_sales,prev_corr_4,Num_pred)
+
+# MODELO: HOLT-WINTERS
+
+previsao_Holt(1,ts_data,dep1_sales,prev_corr,Num_pred)
+previsao_Holt(2,ts_data_2,dep2_sales,prev_corr_2,Num_pred) 
+previsao_Holt(3,ts_data_3,dep3_sales,prev_corr_3,Num_pred) 
+previsao_Holt(4,ts_data_4,dep4_sales,prev_corr_4,Num_pred)
+
+# MODELO: MLPE
+forecast_department(dep1_sales, Num_pred)
+forecast_department(dep2_sales, Num_pred)
+forecast_department(dep3_sales, Num_pred)
+forecast_department(dep4_sales, Num_pred)
+
+# MODELO: PROPHET
+previsao_dep1_prophet <- prever_ultimas_semanas(dados, departamento=1)
+print(previsao_dep1_prophet)
+
+previsao_dep2_prophet <- prever_ultimas_semanas(dados, departamento=2)
+print(previsao_dep2_prophet)
+
+previsao_dep3_prophet <- prever_ultimas_semanas(dados, departamento=3)
+print(previsao_dep3_prophet)
+
+previsao_dep4_prophet <- prever_ultimas_semanas(dados, departamento=4)
+print(previsao_dep4_prophet)
+
+#Plotar previsões prophet
+plotar_previsao(previsao_dep1_prophet, departamento = 1,df_1)
+plotar_previsao(previsao_dep2_prophet, departamento = 2,df_2)
+plotar_previsao(previsao_dep3_prophet, departamento = 3,df_3)
+plotar_previsao(previsao_dep4_prophet, departamento = 4,df_4)
+
+
+####################################################################
+# Passo 4: Modelo (Growing Window)
+####################################################################
+
+# MODELO: ARIMA
+# 
+# # Departamento 1 
+# growing_window_ARIMA(dep1_sales,k,Length_ts,1)
+# # Departamento 2 
+# growing_window_ARIMA(dep2_sales,k,Length_ts,2)
+# # Departamento 3 
+# growing_window_ARIMA(dep3_sales,k,Length_ts,3)
+# # Departamento 4 
+# growing_window_ARIMA(dep4_sales,k,Length_ts,4)
+
+# MODELO: HOLT-WINTERS
+
+# Departamento 1 
+growing_window_HOLT(dep1_sales,k,Length_ts)
+# Departamento 2 
+growing_window_HOLT(dep2_sales,k,Length_ts)
+# Departamento 3 
+growing_window_HOLT(dep3_sales,k,Length_ts)
+# Departamento 4 
+growing_window_HOLT(dep4_sales,k,Length_ts)
+
+# MODELO: MLPE
+# Departamento 1 
+growing_window(dep1_sales, k, length(dep1_sales)) #Timelags(1,4,52) NMAE = 2
+# Departamento 2 
+growing_window(dep2_sales, k, length(dep2_sales)) #Timelags(1,12,13) NMAE = 8-9 ~
+# Departamento 3 
+growing_window(dep3_sales, k, length(dep3_sales)) #Timelags(1,4,52) NMAE = 5-8 ~
+# Departamento 4 
+growing_window(dep4_sales, k, length(dep4_sales)) #Timelags(1,4,52) NMAE = 8.3 ~
+
+# MODELO: PROPHET
+# Departamento 1 
+growing_window_prophet(dados, departamento = 1)
+# Departamento 2 
+growing_window_prophet(dados, departamento = 2)
+# Departamento 3 
+growing_window_prophet(dados, departamento = 3)
+# Departamento 4 
+growing_window_prophet(dados, departamento = 4)
+
+
+####################################################################
+# Previsões finais do melhor modelo
+####################################################################
+
+ts_data_final <- ts(dep1_sales, frequency = k)
+ts_data_2_final <- ts(dep2_sales, frequency = k)
+ts_data_3_final <- ts(dep3_sales, frequency = k)
+ts_data_4_final <- ts(dep4_sales, frequency = k)
+
+pred_dep1 <- prev_final(ts_data_final) 
+pred_dep2 <- prev_final(ts_data_2_final) 
+pred_dep3 <- prev_final(ts_data_3_final) 
+pred_dep4 <- prev_final(ts_data_4_final)
+
+df <- data.frame(Dep1 = pred_dep1,
+                 Dep2 = pred_dep2,
+                 Dep3 = pred_dep3,
+                 Dep4 = pred_dep4)
+write.csv(df, "Pred_Normal/previsoes_finais_arima.csv", row.names = FALSE)
+
+iteracoes_g_arima()
+eliminar_ficheiros()
+
+

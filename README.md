@@ -103,8 +103,3 @@ install.packages(c("forecast", "tseries", "plotly", "ggplot2", "caret", "rminer"
 3.  **Launch Dashboard**: Run the `ui.R` script to start the Shiny application and explore the results interactively.
     ```R
     shiny::runApp("ui.R")
-
-### Interface
-<img width="2535" height="1253" alt="aaaaa" src="https://github.com/user-attachments/assets/a108ee4e-f5e2-42d2-a02f-60ea18eeb8db" />
-<img width="2544" height="1275" alt="bbbbbb" src="https://github.com/user-attachments/assets/9943a3d9-e29d-4401-8677-93029d511622" />
-<img width="2492" height="424" alt="ccccccccccccc" src="https://github.com/user-attachments/assets/20151e86-4de1-4107-9820-f9d0f8367a0e" />
